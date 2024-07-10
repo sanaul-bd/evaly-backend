@@ -1,0 +1,7 @@
+
+.env
+project_note.md
+node_modules
+dist
+dist-ssr
+*.local

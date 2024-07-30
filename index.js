@@ -3,16 +3,23 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const jwt = require('jsonwebtoken');
 const { MongoClient, ServerApiVersion } = require('mongodb');
 require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const { signupValidation, loginValidation } = require('./middleware/AuthValidation');
+const isAuthenticate = require('./middleware/Auth');
 const saltRounds = 10;
-const code = process.env.BCRYPT_CODE;
+// const code = process.env.BCRYPT_CODE;
+
+// all route___ middleware___ 
+
 
 // id pass
 const userName = process.env.USER_NAME;
 const userPass = process.env.USER_PASS;
+const jwt_sec_key = process.env.JWT_SECRET;
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -28,6 +35,7 @@ app.use(express.json())
 // MongoDB Connection
 const uri = process.env.URI;
 const client = new MongoClient(uri);
+
 
 async function run() {
     try {
@@ -57,7 +65,7 @@ async function run() {
 
 
         // * register ______ logIn
-        app.post('/register', async (req, res) => {
+        app.post('/register', signupValidation, async (req, res) => {
 
             bcrypt.hash(req.body.password, saltRounds, async function (err, hash) {
                 // Store hash in your password DB.
@@ -84,7 +92,7 @@ async function run() {
         })
 
 
-        app.post('/login', async (req, res) => {
+        app.post('/login', loginValidation, async (req, res) => {
             const userExist = await usersCollection.findOne({ email: req.body.email })
             console.log(` from login route Email: ${userExist.email}`)
             try {
@@ -94,10 +102,24 @@ async function run() {
                 // Load hash from your password DB.
                 bcrypt.compare(req.body.password, userExist.password, function (err, result) {
                     if (result == true) {
-                        res.status(200).json({ message: "villade user" })
+                        // jwt_____ logic
+                        const jwtToken = jwt.sign(
+                            { email: userExist.email, _id: userExist._id },
+                            jwt_sec_key,
+                            { expiresIn: "24h" }
+                        )
+                        console.log("Token is here :",jwtToken)
+                        res.status(200).json({
+                            message: "villade user",
+                            jwtToken,
+                            email: userExist.email,
+                        })
+
+
                     } else {
                         res.status(404).json({ message: "invillade password" })
                     }
+
 
                 });
             } catch (error) {
@@ -134,7 +156,7 @@ async function run() {
 
 
         // ^_____Users_Operations
-        app.get('/users', async (req, res) => {
+        app.get('/users', isAuthenticate,  async (req, res) => {
             const cursor = usersCollection.find();
             const users = await cursor.toArray();
             res.status(200).json(users)
